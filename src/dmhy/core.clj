@@ -6,6 +6,7 @@
             [clojure.data.json :as json]
             [monger.core :as mg]
             [monger.collection :as mc]
+            [monger.operators :refer :all]
             [clojure.core.async :as async :refer [<! timeout chan go]]))
 
 (def db
@@ -52,13 +53,37 @@
       (reset! interval new-interval))))
 
 (defn start-work []
-  (reset! working true))
+  (reset! should-work true))
 
 (defn stop-work []
-  (reset! working false))
+  (reset! should-work false))
+
+(defn refresh-feed [feed]
+  (prn "refreshing")
+  (let* [url (:url feed)
+        did (:did feed)
+        entries (:entries (parser/parse-feed url))]
+    (doseq [entry entries]
+      (let [entry-title (:title entry)
+            entry-url (:url (first (:enclosures entry)))]
+        (when-not (mc/any? db "feeds" {:url url :did entry-title})
+          (mc/update db "feeds" {:url url } {$push {:did entry-title}})
+          (prn (str "downloading" entry-title)))))))
+
+;; (def one-entry (first (:entries (parser/parse-feed "https://share.dmhy.org/topics/rss/rss.xml?keyword=%E5%B0%8F%E9%AD%94%E5%A5%B3%E5%AD%B8+CHS&sort_id=0&team_id=650&order=date-desc"))))
+;; (let* [url  "https://share.dmhy.org/topics/rss/rss.xml?keyword=%E5%B0%8F%E9%AD%94%E5%A5%B3%E5%AD%B8+CHS&sort_id=0&team_id=650&order=date-desc"
+;;        entry one-entry
+;;        entry-title (:title entry)
+;;        entry-url (:url (first (:enclosures entry)))]
+;;   (prn entry-title)
+;;   (when-not (mc/any? db "feeds" {:url url :did entry-title})
+;;     (mc/update db "feeds" {:url url } {$push {:did entry-title}})
+;;     (prn (str "downloading" entry-title))))
 
 (defn work []
-  (println "working"))
+  (let [feeds (mc/find-maps db "feeds")]
+    (doseq [feed feeds]
+      (refresh-feed feed))))
 
 (go
   (while true
