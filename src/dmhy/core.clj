@@ -4,6 +4,7 @@
             [compojure.core :refer :all]
             [compojure.route :as route]
             [clojure.data.json :as json]
+            [clj-http.client :as client]
             [monger.core :as mg]
             [monger.collection :as mc]
             [monger.operators :refer :all]
@@ -58,6 +59,22 @@
 (defn stop-work []
   (reset! should-work false))
 
+(defn parse-rpcpath [rpcpath]
+  (let [token (last (re-matches #".*/(token.*)@.*" rpcpath))
+        url (clojure.string/replace rpcpath (str token "@") "")]
+    [url token]))
+
+(defn send-to-aria2 [download-uri]
+  (let [rpc (mc/find-one-as-map db "settings" {:path "ariarpc"})
+        [url token] (parse-rpcpath (:value rpc))
+        body (json/write-str
+              {:jsonpc "2.0"
+               :id "1"
+               :method "aria2.addUri"
+               :params [token [download-uri]]})]
+    (prn body)
+    (prn (client/post url {:body body}))))
+
 (defn refresh-feed [feed]
   (prn "refreshing")
   (let* [url (:url feed)
@@ -68,7 +85,8 @@
             entry-url (:url (first (:enclosures entry)))]
         (when-not (mc/any? db "feeds" {:url url :did entry-title})
           (mc/update db "feeds" {:url url } {$push {:did entry-title}})
-          (prn (str "downloading" entry-title)))))))
+          (prn (str "downloading" entry-title))
+          (send-to-aria2 entry-url))))))
 
 ;; (def one-entry (first (:entries (parser/parse-feed "https://share.dmhy.org/topics/rss/rss.xml?keyword=%E5%B0%8F%E9%AD%94%E5%A5%B3%E5%AD%B8+CHS&sort_id=0&team_id=650&order=date-desc"))))
 ;; (let* [url  "https://share.dmhy.org/topics/rss/rss.xml?keyword=%E5%B0%8F%E9%AD%94%E5%A5%B3%E5%AD%B8+CHS&sort_id=0&team_id=650&order=date-desc"
