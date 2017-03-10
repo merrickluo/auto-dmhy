@@ -1,4 +1,4 @@
-;; Last modified: <2017-03-10 15:53:14 Friday by merrick>
+;; Last modified: <2017-03-10 16:51:15 Friday by merrick>
 
 ;; Copyright (C) 2017 A.I.
 
@@ -14,7 +14,7 @@
             [monger.operators :refer :all]))
 
 (def db
-  (let [conn (mg/connect)]
+  (let [conn (mg/connect "mongo-mongodb")]
     (mg/get-db conn "dmhy")))
 
 (defn update-settings [new-settings]
